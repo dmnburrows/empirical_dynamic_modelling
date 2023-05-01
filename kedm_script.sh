@@ -10,8 +10,6 @@ datapath="/mnlsc/data/MCBL4/dburrows/${pref}/"
 array=($(find $datapath . -maxdepth 1 -name "*kmeans*$data_type*CCM*.h5*" ))
 
 #Loop through and run kEDM
-
-
 for i in "${array[@]}"
 do
   echo "Running $i"

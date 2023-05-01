@@ -13,7 +13,8 @@ def CCM_seizure_sort(co, tr, dff, name):
 #=================================
 
     """
-    This function sorts all trace and coord data into dictionary for CCM and 2d arrays as hdf5 files, while also adding in a meantrace to the top of the array. 
+    This function sorts all trace and coord data into dictionary for CCM and 2d arrays as hdf5 files, 
+    while also adding in a meantrace to the top of the array. 
     NB - kEDM wants data structured as: time x cells
     CCM_sort function adds in a meantrace and saves traces as: cells x time in .npy dict, but time x cells in .h5 
 
@@ -40,7 +41,6 @@ def CCM_seizure_sort(co, tr, dff, name):
         f.close()
 
     
-    
     f_dict = {}
     #Check that trace and dff files are the same length
     if co.shape[0] == tr.shape[0] and tr.shape[0] == dff.shape[0]:
@@ -63,8 +63,8 @@ def CCM_seizure_sort(co, tr, dff, name):
             #concatenate with mean trace at the top for kEDM
             array = np.vstack((f_dict['mean ' + i], f_dict[i])).T
             np2h5(full_name, array)
-              
-        np.save(Fdata + '/' + mode + '/' + name + '_pre-CCM.npy', f_dict)
+            
+        np.save(name + '_pre-CCM.npy', f_dict)
             
         return(f_dict)
 

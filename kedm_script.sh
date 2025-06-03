@@ -1,27 +1,66 @@
 #!/bin/bash
 
 #Define input variables
-pref="single"
-data_type="trace"
+export HDF5_DISABLE_VERSION_CHECK=1
 
 
+y=0
 #Define list
-datapath="/mnlsc/data/MCBL4/dburrows/${pref}/"
-array=($(find $datapath . -maxdepth 1 -name "*kmeans*$data_type*CCM*.h5*" ))
+datapath="/snl/scratch25/dburrows/CCM/smoothed/sigma_2/"
+cd $datapath
+array=($(ls *trace*pre-CCM*.h5* ))
 
 #Loop through and run kEDM
 for i in "${array[@]}"
 do
   echo "Running $i"
-  filename=$i
-  searchstring="run"
-  rest=${filename#*$searchstring}
-  savename="${filename:0:$(( ${#filename} - ${#rest} - ${#searchstring} + 6 ))}_${data_type}_CCMxmap.h5"
+  # print a counter of how many files have been processed out of total
+  ((y=y+1))
+
+  echo "Processing file $y of ${#array[@]}"
+
+  filename="$i"
+  savename="${filename/_trace_pre-CCM.h5/_CCMxmap.h5}"
+
+  echo $filename
+  echo $savename
 
   edm-xmap -d, --dataset "data" --rho --rho-diff $filename $savename
-  
   
 done
 
 echo "Finished!"
+
+
+
+y=0
+#Define list
+datapath="/snl/scratch25/dburrows/CCM/smoothed/sigma_4/"
+cd $datapath
+array=($(ls *trace*pre-CCM*.h5* ))
+
+#Loop through and run kEDM
+for i in "${array[@]}"
+do
+  echo "Running $i"
+  # print a counter of how many files have been processed out of total
+  ((y=y+1))
+
+  echo "Processing file $y of ${#array[@]}"
+
+  filename="$i"
+  savename="${filename/_trace_pre-CCM.h5/_CCMxmap.h5}"
+
+  echo $filename
+  echo $savename
+
+  edm-xmap -d, --dataset "data" --rho --rho-diff $filename $savename
+  
+done
+
+echo "Finished!"
+
+
+
+
 

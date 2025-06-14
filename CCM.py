@@ -1,4 +1,4 @@
-import admin_functions as adfn
+import proc_functions as adfn
 import EDM as efn
 #----------------------------------------------------------------------
 Fcode = '/nadata/mnlsc/home/dburrows/Documents/empirical_dynamic_modelling/'

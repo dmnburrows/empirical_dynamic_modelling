@@ -1,5 +1,8 @@
 import proc_functions as adfn
 import EDM as efn
+import numpy as np
+import os 
+
 #----------------------------------------------------------------------
 Fcode = '/nadata/mnlsc/home/dburrows/Documents/empirical_dynamic_modelling/'
 Fdata = '/nadata/mnlsc/home/dburrows/Documents/PTZ-WILDTYPE-CCM/'
@@ -8,6 +11,105 @@ Fdata = '/nadata/mnlsc/home/dburrows/Documents/PTZ-WILDTYPE-CCM/'
 #==============================================
 #PROCESS
 #==============================================
+
+#extract all files
+#===================
+def xtr(string):
+#===================
+    """
+    Load CCM-related arrays (xmap, mask, trace, coord) from filenames
+    sharing a common prefix.
+
+    Parameters
+    ----------
+    string : str
+        Path or filename with suffix pattern (e.g. *_CCMxmap.npy).
+
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - 'trace' : np.ndarray, region traces (cells × time)
+        - 'coord' : np.ndarray, cell coordinates with labels
+        - 'mask'  : np.ndarray, binary mask of convergent edges
+        - 'xmap'  : np.ndarray, CCM cross-map matrix
+    """
+    out = string.split('_')[:-1]
+    name ='_'.join(out)
+    xmap = np.load(f'{name}_CCMxmap.npy')[1:,1:]
+    mask = np.load(f'{name}_mask.npy')[1:,1:]
+    trace = np.load(f'{name}_regtrace.npy')
+
+    if 'run-01_sz' in name: coord = np.load(f"{name.replace('sz','')}labcoord.npy")
+    elif 'run-01_pre' in name: coord = np.load(f"{name.replace('pre','')}labcoord.npy")
+    else: coord = np.load(f'{name}_labcoord.npy')
+    trace = trace[coord[:,4] != 'nan']
+    coord = coord[coord[:,4] != 'nan']
+
+    assert trace.shape[0] == coord.shape[0] == xmap.shape[0] == mask.shape[0], 'shape mismatch'
+    dic = {'name': os.path.basename(name), 'trace':trace, 'coord':coord, 'mask':mask, 'xmap':xmap}
+    return(dic)
+
+#==================================================
+def ccm_region(mask=None, xmap=None, labels=None):
+#==================================================
+    """
+    chec
+    Aggregate cell-level CCM results into region-level directed matrices.
+
+    Parameters
+    ----------
+    mask : np.ndarray
+        (N, N) binary array indicating significant convergent CCM edges.
+    xmap : np.ndarray
+        (N, N) CCM cross-map values (cell i → cell j).
+    labels : array-like
+        Length-N region labels for each cell.
+
+    Returns
+    -------
+    regions : np.ndarray
+        Unique region labels (alphabetical order).
+    xmap_mat : np.ndarray
+        (R, R) matrix of mean CCM strength from region i → region j,
+        averaged over significant cell-level edges.
+    std_mat: np.ndarray
+        as above but std
+    conv_mat : np.ndarray
+        (R, R) matrix of convergence fractions, i.e. proportion of
+        significant edges from region i → region j.
+    """
+
+    mask = mask.astype(int) #convert to binary
+    xmap = xmap*mask #remove non-convergent 
+    np.fill_diagonal(xmap,0) #remove self ccms
+    labels = np.asarray(labels)
+    regions = np.unique(labels)
+    idx_by_region = {r: np.flatnonzero(labels == r) for r in regions}
+
+    R = len(regions)
+    xmap_mat = np.full((R, R), np.nan, dtype=float)
+    std_mat = np.full((R, R), np.nan, dtype=float)
+    conv_mat =  np.full((R, R), np.nan, dtype=float)
+    
+
+    for i, reg_out in enumerate(regions):
+
+        #out region -> ie driver region
+        idx_out = idx_by_region[reg_out]
+        for j, reg_in in enumerate(regions):
+            #in region -> ie driven region
+            idx_in = idx_by_region[reg_in]
+            sub = xmap[np.ix_(idx_out, idx_in)].astype(float)
+            conv_mat[i,j] = (sub > 0).sum() / ((sub.shape[0]*sub.shape[1]) - sub.shape[0])
+
+            sub[sub == 0.0] = np.nan
+            if np.isfinite(sub).any():
+                xmap_mat[i, j] = np.nanmean(sub)
+                std_mat[i, j] = np.nanstd(sub)
+                
+    return(regions, xmap_mat, std_mat, conv_mat)
+
 #=================================
 def CCM_seizure_sort(co, tr, dff, name):
 #=================================
@@ -215,54 +317,54 @@ def ccm_cellstack(data_l, coord_l, mode):
     return(data_comb, coord_comb)
 
     
-#=================================
-def ccm_region(data, coord, mode):
-#=================================
+# #=================================
+# def ccm_region(data, coord, mode):
+# #=================================
 
-    """
-    This function groups CCM statistics for each neuron with their regional brain labels and returns it as a dictionary. 
+#     """
+#     This function groups CCM statistics for each neuron with their regional brain labels and returns it as a dictionary. 
 
-    Inputs:
-        data (np array): vector of CCM statistics ordered by cell
-        coord (np array): cells x XYZ coordinates and all labels
-        mode (str): which labelling type to use: 
-            'coarse' = 5 major brain distinctions
-            'gran' = subregional brain distinctions
+#     Inputs:
+#         data (np array): vector of CCM statistics ordered by cell
+#         coord (np array): cells x XYZ coordinates and all labels
+#         mode (str): which labelling type to use: 
+#             'coarse' = 5 major brain distinctions
+#             'gran' = subregional brain distinctions
     
-    Returns:
-        df (dict): dictionary containing ccm data, coordinates, labels and fish number together.
-        lab (np array): a vector of labels whose order corresponds to the numbers in the dictionary
+#     Returns:
+#         df (dict): dictionary containing ccm data, coordinates, labels and fish number together.
+#         lab (np array): a vector of labels whose order corresponds to the numbers in the dictionary
         
-    """      
+#     """      
     
-    import numpy as np
-    import pandas as pd
+#     import numpy as np
+#     import pandas as pd
     
-    if data.shape[0] != coord.shape[0]:
-        print('Data shape does not match')
-        return()
+#     if data.shape[0] != coord.shape[0]:
+#         print('Data shape does not match')
+#         return()
     
-    if mode != 'coarse' and mode != 'gran':
-        print('Choose correct region grouping')
-        return()
+#     if mode != 'coarse' and mode != 'gran':
+#         print('Choose correct region grouping')
+#         return()
 
 
-    #Choose granularity of cell labelling
-    if mode == 'coarse':
-        curr_coord = coord[:,4] #coord labels - coarse 
+#     #Choose granularity of cell labelling
+#     if mode == 'coarse':
+#         curr_coord = coord[:,4] #coord labels - coarse 
 
-    if mode == 'gran':
-        curr_coord = coord[:,3] #coord labels - granular
+#     if mode == 'gran':
+#         curr_coord = coord[:,3] #coord labels - granular
 
 
-    lab_coord = np.column_stack((coord[:,:3].astype(float).astype(np.object),curr_coord)) #Combine coordinates + labels 
-    num_v = np.zeros(curr_coord.shape[0]) #empty vector to fill in with number labels
-    lab = np.unique(curr_coord) #unique labels ordered
-    for i in range(lab.shape[0]): num_v[curr_coord == lab[i]] = i #loop through each label and number by lab vector
-    num_v = num_v.astype(int)
+#     lab_coord = np.column_stack((coord[:,:3].astype(float).astype(np.object),curr_coord)) #Combine coordinates + labels 
+#     num_v = np.zeros(curr_coord.shape[0]) #empty vector to fill in with number labels
+#     lab = np.unique(curr_coord) #unique labels ordered
+#     for i in range(lab.shape[0]): num_v[curr_coord == lab[i]] = i #loop through each label and number by lab vector
+#     num_v = num_v.astype(int)
 
-    df = pd.DataFrame(np.column_stack((data.astype(np.object), np.column_stack((lab_coord, np.column_stack((num_v.astype(np.object), coord[:,-1].astype(int))))))), columns = ['data', 'x', 'y', 'z', 'label', 'num', 'fish num'])
-    return(df, lab)
+#     df = pd.DataFrame(np.column_stack((data.astype(np.object), np.column_stack((lab_coord, np.column_stack((num_v.astype(np.object), coord[:,-1].astype(int))))))), columns = ['data', 'x', 'y', 'z', 'label', 'num', 'fish num'])
+#     return(df, lab)
 
 #=================================
 def ccm_region_mean(df):

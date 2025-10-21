@@ -39,6 +39,8 @@ def xtr(string):
     xmap = np.load(f'{name}_CCMxmap.npy')[1:,1:]
     mask = np.load(f'{name}_mask.npy')[1:,1:]
     trace = np.load(f'{name}_regtrace.npy')
+    E = np.load(f'{name}_trace_pre-CCM_E.npy')[1:]
+    corr = np.load(f'{name}_corr.npy')
 
     if 'run-01_sz' in name: coord = np.load(f"{name.replace('sz','')}labcoord.npy")
     elif 'run-01_pre' in name: coord = np.load(f"{name.replace('pre','')}labcoord.npy")
@@ -46,8 +48,13 @@ def xtr(string):
     trace = trace[coord[:,4] != 'nan']
     coord = coord[coord[:,4] != 'nan']
 
-    assert trace.shape[0] == coord.shape[0] == xmap.shape[0] == mask.shape[0], 'shape mismatch'
-    dic = {'name': os.path.basename(name), 'trace':trace, 'coord':coord, 'mask':mask, 'xmap':xmap}
+    rhodiff = xmap.copy()
+    rhodiff[~mask] = np.nan
+    rhodiff = rhodiff - corr
+
+    assert trace.shape[0] == coord.shape[0] == xmap.shape[0] == mask.shape[0] == E.shape[0] == rhodiff.shape[0], 'shape mismatch'
+    dic = {'name': os.path.basename(name), 'trace':trace, 'coord':coord, 
+       'mask':mask, 'xmap':xmap, 'rhodiff': rhodiff, 'corr':corr,'E':E}
     return(dic)
 
 #==================================================
@@ -101,14 +108,24 @@ def ccm_region(mask=None, xmap=None, labels=None):
             #in region -> ie driven region
             idx_in = idx_by_region[reg_in]
             sub = xmap[np.ix_(idx_out, idx_in)].astype(float)
-            conv_mat[i,j] = (sub > 0).sum() / ((sub.shape[0]*sub.shape[1]) - sub.shape[0])
-
+            
+            #figure out convergence fraction
+            n_out, n_in = sub.shape
+            n_self = n_out if i == j else 0
+            denom = n_out * n_in - n_self
+            conv_mat[i, j] = np.count_nonzero(sub > 0) / denom if denom > 0 else np.nan
+            
+            
             sub[sub == 0.0] = np.nan
             if np.isfinite(sub).any():
                 xmap_mat[i, j] = np.nanmean(sub)
                 std_mat[i, j] = np.nanstd(sub)
                 
     return(regions, xmap_mat, std_mat, conv_mat)
+
+
+
+
 
 #=================================
 def CCM_seizure_sort(co, tr, dff, name):
